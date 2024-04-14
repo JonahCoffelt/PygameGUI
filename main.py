@@ -28,15 +28,14 @@ class App:
             self.clock.tick()
             pg.display.set_caption(str(round(self.clock.get_fps())))
 
-            for event in pg.event.get():
+            events = pg.event.get()
+
+            for event in events:
                 if event.type == pg.QUIT:
                     pg.quit()
                     sys.exit()
 
-                if event.type == pg.VIDEORESIZE:
-                    self.ui_handler.update_texture = 2
-                    self.ui_handler.win_size = (event.w, event.h)
-                    self.ui_handler.surf = pg.Surface((event.w, event.h)).convert_alpha()
+            self.ui_handler.get_events(events)
 
             self.update()
             self.draw()

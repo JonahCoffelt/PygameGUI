@@ -20,7 +20,8 @@ class UI_Handler:
             'FOV' : 90.0,
             'render_distance' : 10,
             'view_distance' : 250,
-            'lighting_distance' : 50
+            'lighting_distance' : 50,
+            'selected_card' : 2
             }
         self.mouse_states = [False, False, False]
 
@@ -29,6 +30,7 @@ class UI_Handler:
         self.current_screen_data = {key : value.copy() for key, value in zip(data.keys(), data.values())}
 
         self.update_texture = 2
+        self.scroll = 0
         self.n_cards = 5
 
     def update(self):
@@ -54,9 +56,25 @@ class UI_Handler:
         self.draw_text()
 
     def update_elements(self):
+        scroll_bounds = self.current_screen_data['scroll']
+        self.scroll = min(max(self.scroll, scroll_bounds[0]), scroll_bounds[1])
         self.update_hotkeys()
         self.update_buttons()
         self.update_sliders()
+
+    def get_events(self, events):
+        for event in events:
+            if event.type == pg.VIDEORESIZE:
+                self.update_texture = 2
+                self.win_size = (event.w, event.h)
+                self.surf = pg.Surface((event.w, event.h)).convert_alpha()
+            if event.type == pg.MOUSEWHEEL:
+                self.update_texture = 2
+                self.scroll += event.y/10
+
+            if int(event.type) in list(self.current_screen_data['events'].keys()):
+                func = self.current_screen_data['events'][int(pg.MOUSEWHEEL)]
+                func[0](event, *func[1])
 
     def log(self, txt=''):
         print(txt)
@@ -64,10 +82,17 @@ class UI_Handler:
 
     def set_screen(self, screen):
         self.update_texture = 2
+        self.scroll = 0
         self.screen = screen
         data = self.screen_data[screen]
         self.current_screen_data = {key : value.copy() for key, value in zip(data.keys(), data.values())}
     
+    def increment_card(self, event):
+        val = self.values['selected_card'] + event.y
+        self.values['selected_card'] = min(max(val, 0), 19)
+        print(self.values['selected_card'])
+
+
     def add_button(self, pos: tuple=(.5, .5, .1, .1), img: pg.image=None, func=None, args: list=[]):
         if pos == "rndm": pos = np.array([random.uniform(0, 1), random.uniform(0, 1), .1, .1])
         self.current_screen_data['buttons'].append([np.array([*pos]), img, func, [*args]])
@@ -88,6 +113,8 @@ class UI_Handler:
                 rect[3] = rect[2] * (img_rect[3] / img_rect[2])
                 rect[1] -= rect[3]/2
         
+        if element[-1]: rect[1] += self.scroll * self.win_size[1]
+
         return rect
 
     def update_hotkeys(self):
@@ -115,7 +142,7 @@ class UI_Handler:
 
     def execute_draw_calls(self):
         for func in self.current_screen_data['draw_calls']:
-            rect = self.get_rect([func[1][1]])
+            rect = self.get_rect([func[1][1], func[-1]])
             func[0](self.surf, func[1][0], rect)
 
     def draw_sliders(self):
@@ -159,11 +186,31 @@ class UI_Handler:
         self.surf.fill((0, 0, 0, 100))
         self.draw()
 
+    def get_card_surf(self, card_width):
+        card_surf = pg.Surface((card_width, card_width * 3/2)).convert_alpha()
+        card_surf.fill((0, 0, 0, 0))
+        pg.draw.rect(card_surf, (255, 255, 0, 255), (0, 0, card_width, card_width * 3/2))
+        pg.draw.rect(card_surf, (0, 0, 0, 255), (0, 0, card_width, card_width * 3/2), 2)
+        return card_surf
+
     def hud(self):
-        self.surf.fill((255, 0, 0, 0))
+        self.surf.fill((0, 0, 0, 0))
         self.draw()
 
-        card_size = self.win_size[0] / self.n_cards / 2, self.win_size[1] / 5
+        card_width = self.win_size[0] / 10
+        for i in range(5):
+            card = self.get_card_surf(card_width)
+            w, h = card.get_rect()[2:]
+            index = i - self.values['selected_card']
+            dist = abs(index)
+            card = pg.transform.rotate(card, -np.sqrt(dist) * 10 * np.sign(index))
+            self.surf.blit(card, (i * (w + 3) - index * 10, self.win_size[1] - h * 1.5 + np.sqrt(dist) * 50))
 
-        for i in range(self.n_cards):
-            pg.draw.rect(self.surf, (255, 0, 0, 255), (self.win_size[0] / 2 - (card_size[0] + 5) * self.n_cards/2 + i * (card_size[0] + 5), self.win_size[1] - card_size[1] - 5, card_size[0], card_size[1]))
+        #for i in range(20):
+        #    card = self.get_card_surf(card_width)
+        #    w, h = card.get_rect()[2:]
+        #    index = i - self.values['selected_card']
+        #    dist = np.sqrt(abs(index)) * (abs(index)/(index + .0001))
+        #    card = pg.transform.rotate(card, -dist * 10)
+        #    self.surf.blit(card, (self.win_size[0] / 2 + w/1.5 * dist - w/2, -300 + self.win_size[1] - h + abs(index) * (w/4) / np.sqrt(abs(index + 0.0001))))
+#
